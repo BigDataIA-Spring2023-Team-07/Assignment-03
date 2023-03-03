@@ -394,7 +394,7 @@ async def login(login_data: OAuth2PasswordRequestForm = Depends()):
             if pwd_cxt.verify(login_data.password, user['hashed_password'][0]):
                 data = {'message': 'Username verified successfully', 'status_code': '200'}
                 accessToken = access_token.create_access_token(data={"sub": str(user['username'][0])})
-                data = {'message': 'Username verified successfully','access_token': accessToken,'status_code': '200'}
+                data = {'message': 'Username verified successfully','access_token': accessToken,'service_plan': user['service_plan'][0],'status_code': '200'}
             else:
                 data = {'message': 'Password is incorrect' ,'status_code': '401'}
     except Exception as e:
@@ -712,18 +712,18 @@ async def create_plot_table():
     db.close()
     return {'status_code': '200'}
 
-@app.post('/create_default_user')
-async def create_default_user():
+@app.post('/create_user')
+async def create_default_user(user: schema.User):
     database_file_name = "assignment_01.db"
     database_file_path = os.path.join('data/',database_file_name)
     db = sqlite3.connect(database_file_path)
     cursor = db.cursor()
-    cursor.execute('''CREATE TABLE if not exists Users (id,username,hashed_password)''')
-    user= pd.read_sql_query("SELECT * FROM Users", db)
-    if len(user) == 0:
+    cursor.execute('''CREATE TABLE if not exists Users (username,hashed_password,service_plan,api_limit)''')
+    userExist= pd.read_sql_query('SELECT * FROM Users where username="{}"'.format(user.username), db)
+    if len(userExist) == 0:
         pwd_cxt = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        hashed_password = pwd_cxt.hash(("spring2023"))
-        cursor.execute("Insert into Users values (?,?,?)", (1,"damg7245",hashed_password))
+        hashed_password = pwd_cxt.hash(user.hashed_password)
+        cursor.execute("Insert into Users values (?,?,?,?)", (user.username,hashed_password,user.service_plan,user.api_limit))
         db.commit()
         db.close()
     return {'status_code': '200'}
@@ -734,6 +734,84 @@ async def retrieve_plot_data(getCurrentUser: schema.TokenData = Depends(oauth2.g
     database_file_path = os.path.join('data/',database_file_name)
     db = sqlite3.connect(database_file_path)
     df = pd.read_sql_query("SELECT * FROM nexrad_plot", db)
+    df_dict = df.to_dict(orient='records')
+    db.close()
+    return {'df_dict':df_dict, 'status_code': '200'}
+
+@app.get('/api_data')
+async def api_data():
+    database_file_name = "assignment_01.db"
+    database_file_path = os.path.join('data/',database_file_name)
+    db = sqlite3.connect(database_file_path)
+    cursor = db.cursor()
+    cursor.execute('''DROP TABLE if exists User_Activity_Data''')
+    cursor.execute('''CREATE TABLE if not exists User_Activity_Data (username,service_plan,api_limit,date,time,api_name,request_status,hit_count)''')
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-01","12:11:07","goes_station","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-01","12:13:43","goes_years","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-01","12:14:31","goes_days","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-01","14:17:39","goes_hours","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-02","08:29:40","goes_files","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-02","08:29:49","goes_fetch_url","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-02","09:40:57","goes_AWS_url","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user1","free",10,"2023-02-03","00:18:33","validatefileUrl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-03","22:55:21","getfileurl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-03","21:32:06","nexrad_s3_fetch_db","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-03","09:47:54","nexrad_s3_fetch_month","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-03","09:38:58","nexrad_s3_fetch_day","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-03","02:37:35","nexrad_s3_fetch_station","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-04","18:22:25","nexrad_s3_fetch_file","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-04","21:37:21","nexrad_s3_fetchurl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-04","05:10:35","nexrad_s3_fetch_key","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-02-04","13:39:14","nexrad_s3_upload","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-04","19:17:29","nexrad_s3_generate_user_link","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","06:21:05","create_plot_data","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","13:14:13","retrieve_plot_data","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","16:58:15","goes_station","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","15:29:04","goes_years","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","21:58:42","goes_days","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","01:32:26","goes_hours","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user2","gold",15,"2023-03-05","15:18:50","goes_files","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","08:23:36","goes_fetch_url","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","05:57:25","goes_AWS_url","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","08:50:59","validatefileUrl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","10:26:56","getfileUrl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","01:50:16","nexrad_s3_fetch_db","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","16:44:30","nexrad_s3_fetch_month","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",20,"2023-03-08","01:44:56","nexrad_s3_fetch_day","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user3","platinum",10,"2023-03-10","09:23:44","nexrad_s3_fetch_station","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","19:50:28","nexrad_s3_fetch_file","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","18:28:54","nexrad_s3_fetchurl","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","10:18:57","nexrad_s3_fetch_key","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","19:15:37","nexrad_s3_upload","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","10:19:20","nexrad_s3_generate_user_link","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","00:07:40","create_plot_data","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-10","21:30:33","retrieve_plot_data","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-11","06:34:14","retrieve_plot_data","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-11","03:25:59","goes_station","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-11","09:18:46","goes_years","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-11","08:36:55","goes_days","Success",1))
+    cursor.execute("Insert into User_Activity_Data values (?,?,?,?,?,?,?,?)", ("user4","free",10,"2023-03-11","08:32:01","goes_hours","Success",1))
+    db.commit()
+    db.close()
+    print("Data Inserted Successfully")
+    return {'status_code': '200'}
+
+@app.get('/getAnalyticsData')
+async def get_analytics_data():
+    database_file_name = "assignment_01.db"
+    database_file_path = os.path.join('data/',database_file_name)
+    db = sqlite3.connect(database_file_path)
+    df = pd.read_sql_query("SELECT * FROM User_Activity_Data", db)
+    df_dict = df.to_dict(orient='records')
+    db.close()
+    return {'df_dict':df_dict, 'status_code': '200'}
+
+@app.get('/getUsersData')
+async def get_analytics_data():
+    database_file_name = "assignment_01.db"
+    database_file_path = os.path.join('data/',database_file_name)
+    db = sqlite3.connect(database_file_path)
+    df = pd.read_sql_query("SELECT * FROM Users", db)
     df_dict = df.to_dict(orient='records')
     db.close()
     return {'df_dict':df_dict, 'status_code': '200'}

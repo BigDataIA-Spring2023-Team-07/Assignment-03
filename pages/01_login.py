@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import os
 from dotenv import load_dotenv
-
+import webbrowser
 load_dotenv()
 
 
@@ -57,14 +57,9 @@ with st.container():
                         # Truncate any remaining contents after the new token
                         f.truncate()
                     st.success('Login Successful')
-                    # show sidebar
+                    if response.json()['service_plan']=='admin':
+                        webbrowser.open("http://localhost:8501/admin")
                     st.markdown(block_sidebar_style, unsafe_allow_html=True)
-
-
-
-                    
-
-
                 elif int(response.json()['status_code']) == 404:
                     st.error('Username not found in the database')
                 else:

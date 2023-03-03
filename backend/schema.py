@@ -74,3 +74,17 @@ class TokenClass(BaseModel):
 
 class TokenData(BaseModel):
     username: Union[str, None] = None
+
+class User(BaseModel):
+    username: str
+    hashed_password: str
+    service_plan: str
+    api_limit: int
+
+class UserActivityData(BaseModel):
+    username: str
+    api_limit: str
+    date: str
+    api_name: int
+    request_status: str
+    hit_count: int

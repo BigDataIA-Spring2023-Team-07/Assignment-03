@@ -28,15 +28,17 @@ def create_plot_table():
     response = requests.post('http://localhost:8000/create_plot_table')
     return response
 
-def create_default_user():
-    response = requests.post('http://localhost:8000/create_default_user')
+def create_admin_user():
+    response = requests.post('http://localhost:8000/create_user', json={"username": "admin", "hashed_password": "admin","service_plan": "admin", "api_limit": 1000})
+    return response
+
+def api_data():
+    response = requests.get('http://localhost:8000/api_data')
     return response
 
 if __name__ == "__main__":
-
-
-
-    create_default_user()
+    create_admin_user()
+    api_data()
     # create_plot_table()
 
     st.title("Are you ready to fetch some data?")
@@ -45,7 +47,5 @@ if __name__ == "__main__":
     image = Image.open('image.png')
     st.image(image, caption='four humans working to fetch satelite data')
 
-    if st.button('Fetch Data'):
+    if st.button('Login'):
         webbrowser.open("http://localhost:8501/login")
-
-    
