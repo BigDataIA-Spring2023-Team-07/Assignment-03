@@ -81,33 +81,33 @@ def user_status(username:str, api_name: str):
 
     db = sqlite3.connect(database_path)
     cursor = db.cursor()
-    cursor.execute('''CREATE TABLE if not exists user_activity (username,api_limit,date,api_name,hit_count)''')
+    cursor.execute('''CREATE TABLE if not exists user_activity (username,service_plan,api_limit,date,api_name,hit_count)''')
     cursor.execute('SELECT * FROM user_activity WHERE username =? ORDER BY date DESC LIMIT 1',(username,))
     result = cursor.fetchone()
     api_limit=pd.read_sql_query('Select api_limit from Users where username="{}"'.format(username),db).api_limit.item()
     date = dt.datetime.utcnow()
+    service_plan=pd.read_sql_query('Select service_plan from Users where username="{}"'.format(username),db).service_plan.item()
     if not result:
         hit_count = 1
-        cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
+        cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?,?)', (username,service_plan,api_limit,date,api_name,hit_count))
         db.commit()
     else:
-        last_date = dt.datetime.strptime(result[2], '%Y-%m-%d %H:%M:%S.%f')
+        last_date = dt.datetime.strptime(result[3], '%Y-%m-%d %H:%M:%S.%f')
         time_diff = dt.datetime.utcnow() - last_date
-        # time_diff = time_diff + dt.timedelta(hours=1)
         if time_diff <= dt.timedelta(hours=1):
-            if result[4]<api_limit:
-                hit_count = result[4] + 1
-                cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
+            if result[5]<api_limit:
+                hit_count = result[5] + 1
+                cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?,?)', (username,service_plan,api_limit,date,api_name,hit_count))
                 db.commit()
             else:
                 db.commit()
                 db.close() 
-                return "Too many requests wait for 1 hour"
+                return Response(status_code=status.HTTP_429_TOO_MANY_REQUESTS)
         else:
             hit_count = 1
-            cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
+            cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?,?)', (username,service_plan,api_limit,date,api_name,hit_count))
             db.commit()
-            # db.close()
+
 
 
 

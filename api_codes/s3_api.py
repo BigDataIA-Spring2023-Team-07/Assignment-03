@@ -39,7 +39,7 @@ def create_connection():
 router = APIRouter()
 
 @router.get('/s3_fetch_keys')
-async def s3_fetch_keys(fn_s3_fetch_keys: schema.fn_s3_fetch_keys, getCurrentUser: schema.TokenData = Depends(oauth2.get_current_user)):
+async def s3_fetch_keys(fn_s3_fetch_keys: schema.fn_s3_fetch_keys): #, getCurrentUser: schema.TokenData = Depends(oauth2.get_current_user)):
     """
     This function fetches the keys from the S3 bucket based on the bucket name
 
@@ -65,7 +65,7 @@ async def s3_fetch_keys(fn_s3_fetch_keys: schema.fn_s3_fetch_keys, getCurrentUse
 
 
 @router.get('/download_s3_file')
-async def download_s3_file(fn_s3_download_file: schema.fn_s3_download_file, getCurrentUser: schema.TokenData = Depends(oauth2.get_current_user)):
+async def download_s3_file(fn_s3_download_file: schema.fn_s3_download_file): #, getCurrentUser: schema.TokenData = Depends(oauth2.get_current_user)):
 
     """
     This function downloads the file from the S3 bucket based on the file name and bucket name

@@ -12,6 +12,10 @@ COPY backend /app/backend
 
 COPY api_codes /app/api_codes
 
+COPY .env /app/
+
+COPY database.db /app/
+
 COPY data /app/data
 
 RUN pip install -r requirements.txt

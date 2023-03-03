@@ -7,6 +7,8 @@ import sqlite3
 from pathlib import Path
 import time
 import shutil
+import sys
+# sys.path.append('../app')
 
 # logging.basicConfig(filename = 'assignment_01.log',level=logging.INFO, force= True, format='%(asctime)s:%(levelname)s:%(message)s')
 
@@ -20,6 +22,7 @@ load_dotenv()
 
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 database_file_path = os.path.join(project_dir,  'database.db')
+
 
 
 
@@ -146,12 +149,13 @@ def db_connection():
     Returns:
         conn: connection to database
     """
-    try:
-        conn = sqlite3.connect(os.path.join(project_dir, 'database.db'))
-
-        write_logs("Connected to db")    
-    except Exception as e:
-        print(e)
+    # try:
+    conn = sqlite3.connect(database_file_path)
+        
+    print("------------------------------------------------------------")
+    write_logs("Connected to db")    
+    # except Exception as e:
+    #     print(e)
     return conn
     
     
