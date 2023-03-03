@@ -88,3 +88,17 @@ class UserActivityData(BaseModel):
     api_name: int
     request_status: str
     hit_count: int
+    
+    
+class api_detail_fetch(BaseModel):
+    api_name:str
+
+class Nexrad_fetch_filename(BaseModel):
+    filename: str
+`
+class fn_s3_fetch_keys(BaseModel):
+    bucket_name: str
+
+class fn_s3_download_file(BaseModel):
+    bucket_name: str
+    file_name: str

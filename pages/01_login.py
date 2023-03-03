@@ -2,7 +2,9 @@ import streamlit as st
 import requests
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 import webbrowser
+
 load_dotenv()
 
 
@@ -36,26 +38,24 @@ with st.container():
                 }
                 response = requests.post('http://localhost:8000/login',data=data)
                 if int(response.json()['status_code']) == 200:
-                    os.environ["access_token"] = response.json()['access_token']
+                    os.environ["access_token"] = response.json()["access_token"]
+                    requests.post('http://localhost:8000/update_login',headers={"Authorization": f"Bearer {response.json()['access_token']}"})
                     # with open(".env", "a") as f:
                     #     f.write(f"access_token={response.json()['access_token']}\n")
 
-                    with open(".env", "r+") as f:
-                        contents = f.read()
-                        # Get the position of the current access token in the file
-                        token_position = contents.find("access_token")
+                    with open(".env", "r") as f:
+                        lines = f.readlines()
 
-                        # Move the file pointer to the beginning of the access token
-                        f.seek(token_position)
+                    # Find the line that contains the access token
+                    for i, line in enumerate(lines):
+                        if line.startswith("access_token="):
+                            # Replace the access token with the new value
+                            lines[i] = "access_token=" + response.json()['access_token'] + "\n"
+                            break
 
-                        # Overwrite the existing access token with the new one
-                        f.write("access_token=" + response.json()['access_token'])
-
-                        # Move the file pointer to the end of the file
-                        f.seek(0, 2)
-
-                        # Truncate any remaining contents after the new token
-                        f.truncate()
+                    # Write the modified lines back to the file
+                    with open(".env", "w") as f:
+                        f.writelines(lines)
                     st.success('Login Successful')
                     if response.json()['service_plan']=='admin':
                         webbrowser.open("http://localhost:8501/admin")
@@ -64,3 +64,6 @@ with st.container():
                     st.error('Username not found in the database')
                 else:
                     st.error('Password is incorrect')
+
+if st.button("Signup"):
+     webbrowser.open("http://localhost:8501/User_Signup")
