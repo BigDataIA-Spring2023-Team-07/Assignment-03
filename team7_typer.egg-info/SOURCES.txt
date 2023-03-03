@@ -22,7 +22,9 @@ pages/Goes_file_link.py
 pages/Nexrad.py
 pages/Nexrad_file_link.py
 pages/Nexrad_plot.py
+pages/User_Signup.py
 pages/__init__.py
+pages/user_dashboard.py
 team7_typer/__init__.py
 team7_typer/typer_main.py
 team7_typer.egg-info/PKG-INFO
