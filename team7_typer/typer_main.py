@@ -25,93 +25,7 @@ from api_codes import nexrad_api, s3_api
 from backend import nexrad_main
 
 
-database_path = os.path.join(project_dir, os.path.join('data', 'assignment_01.db'))
 app = typer.Typer()
-
-
-def create_db():
-
-    """
-    Create a table users in the database
-
-
-    """
-     
-    db = sqlite3.connect(database_path)
-    cursor = db.cursor()
-    cursor.execute('''CREATE TABLE if not exists Users (username,hashed_password, plan, api_limit)''')
-    db.commit()
-    db.close()
-
-def insert_user(username, password, plan, api_limit):
-
-    """
-    Insert a user into the database
-
-    Args:
-        username (str): User name
-        password (str): Password
-        plan (int): User plan
-        api_limit (int): API limit
-    
-    Returns:
-        None
-    """
-
-    db = sqlite3.connect(database_path)
-    cursor = db.cursor()
-    cursor.execute('''CREATE TABLE if not exists Users (username,hashed_password, plan, api_limit)''')
-    cursor.execute('INSERT INTO Users VALUES (?,?,?,?)', (username, password, plan, api_limit))
-    db.commit()
-    db.close()
-
-
-
-def user_status(username:str, api_name: str):
-    """
-    Check the user status if they have exceeded the api limit
-
-    Args:
-        username (str): User name
-        api_name (str): API name
-
-    Returns:
-        None
-    """
-
-    db = sqlite3.connect(database_path)
-    cursor = db.cursor()
-    cursor.execute('''CREATE TABLE if not exists user_activity (username,api_limit,date,api_name,hit_count)''')
-    cursor.execute('SELECT * FROM user_activity WHERE username =? ORDER BY date DESC LIMIT 1',(username,))
-    result = cursor.fetchone()
-    api_limit=pd.read_sql_query('Select api_limit from Users where username="{}"'.format(username),db).api_limit.item()
-    date = dt.datetime.utcnow()
-    if not result:
-        hit_count = 1
-        cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
-        db.commit()
-    else:
-        last_date = dt.datetime.strptime(result[2], '%Y-%m-%d %H:%M:%S.%f')
-        time_diff = dt.datetime.utcnow() - last_date
-        # time_diff = time_diff + dt.timedelta(hours=1)
-        if time_diff <= dt.timedelta(hours=1):
-            if result[4]<api_limit:
-                hit_count = result[4] + 1
-                cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
-                db.commit()
-            else:
-                db.commit()
-                db.close() 
-                return "Too many requests wait for 1 hour"
-        else:
-            hit_count = 1
-            cursor.execute('INSERT INTO user_activity VALUES (?,?,?,?,?)', (username,api_limit,date,api_name,hit_count))
-            db.commit()
-            # db.close()
-
-
-
-
 
 
 def create_connection():
@@ -146,6 +60,9 @@ def createuser(username: str):
         None
     """
 
+    FASTAPI_URL = "http://3.235.95.244:8000/createdb"
+    response = requests.post(FASTAPI_URL)
+
 
     password = typer.prompt("Enter password", hide_input=True)
     confirm_password = typer.prompt("Confirm password", hide_input=True)
@@ -164,30 +81,34 @@ def createuser(username: str):
             typer.echo("Invalid tier selection")
             return
         
-        password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        
-        connection = sqlite3.connect(database_path)
-        cursor = connection.cursor()
-        create_db()
-        users = pd.read_sql_query("SELECT * FROM Users", connection)
-        user_lst = users["username"].tolist()
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
-        if username in user_lst:
-            typer.echo(f"User {username} already exists")
+        FASTAPI_URL = "http://3.235.95.244:8000/check_username"
+        response = requests.post(FASTAPI_URL, json={"username": username})
+
+        if response.status_code == 409:
+            typer.echo("User already exists")
             return
         
-        else:
-            if user_tier == 1:
-                api_limit = 10
-
-            if user_tier == 2:
-                api_limit = 15
-            
-            if user_tier == 3:
-                api_limit = 20
+        if user_tier == 1:
+            api_limit = 10
     
-            insert_user(username, password, user_tier, api_limit)
-            typer.echo(f"User {username} created successfully")
+        
+        if user_tier == 2:
+            api_limit = 15
+        
+        if user_tier == 3:
+            api_limit = 20
+        
+        FASTAPI_URL = "http://3.235.95.244:8000/insert_user"
+        response = requests.post(FASTAPI_URL, json={"username": username, "hashed_password": hashed_password.decode(), "service_plan": user_tier, "api_limit": api_limit})
+        if response.status_code == 200:
+            typer.echo("User created successfully")
+            return
+
+        
+
+
 
 
 @app.command()
@@ -204,30 +125,22 @@ def fetchnexrad(username: str, password: str):
         None
     """
 
-    s3client = create_connection()
-    connection = sqlite3.connect(database_path)
-    cursor = connection.cursor()
-    users = pd.read_sql_query("SELECT * FROM Users", connection)
-    user_lst = users["username"].tolist()
+    FASTAPI_URL = "http://3.235.95.244:8000/check_user_login"
+    response = requests.post(FASTAPI_URL, json={"username": username, "password": password})
 
-    if username not in user_lst:
-        typer.echo(f"User {username} does not exist")
+    if response.status_code == 401:
+        typer.echo("Invalid username or password")
         return
 
-    stored_password = pd.read_sql("SELECT hashed_password FROM users WHERE username =" + "'" + username + "'", connection)
-    stored_password = stored_password["hashed_password"].tolist()
-    stored_password = stored_password[0]
+    FASTAPI_URL = "http://3.235.95.244:8000/insert_user_activity"
+    response = requests.post(FASTAPI_URL, json={"username": username, "api_name": "nexrad_s3_fetchurl"})
 
-    if bcrypt.checkpw(password.encode('utf-8'), stored_password):
-        typer.echo("Password is correct")
-    else:
-        typer.echo("Password is incorrect")
+    if response.status_code == 429:
+        typer.echo("Too many requests wait for 1 hour")
         return
     
-    response = user_status(username, "nexrad_s3_fetchurl")
-    if response == "Too many requests wait for 1 hour":
-        typer.echo(response)
-        return
+
+
     
         
     year = typer.prompt("Enter year from 2022 to 2023", type = str)
@@ -240,7 +153,7 @@ def fetchnexrad(username: str, password: str):
     # station_selected = None
     # file_selected = None
     
-    FASTAPI_URL = "http://localhost:8000/nexrad_s3_fetch_month"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_s3_fetch_month"
     response = requests.get(FASTAPI_URL, json={"yearSelected": year})
 
     if response.status_code == 200:
@@ -252,7 +165,7 @@ def fetchnexrad(username: str, password: str):
             typer.echo("Invalid month")
             return
         
-    FASTAPI_URL = "http://localhost:8000/nexrad_s3_fetch_day"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_s3_fetch_day"
     response = requests.get(FASTAPI_URL, json={"year": str(year), "month": str(month_selected)})
 
     if response.status_code == 200:
@@ -264,7 +177,7 @@ def fetchnexrad(username: str, password: str):
             typer.echo("Invalid day")
             return
 
-    FASTAPI_URL = "http://localhost:8000/nexrad_s3_fetch_station"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_s3_fetch_station"
     response = requests.get(FASTAPI_URL, json={"year": year, "month": month_selected, "day": day_selected})
 
     if response.status_code == 200:
@@ -276,7 +189,7 @@ def fetchnexrad(username: str, password: str):
             typer.echo("Invalid station")
             return
                 
-    FASTAPI_URL = "http://localhost:8000/nexrad_s3_fetch_file"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_s3_fetch_file"
     response = requests.get(FASTAPI_URL, json={"year": year, "month": month_selected, "day": day_selected, "station": station_selected})
 
     if response.status_code == 200:
@@ -288,7 +201,7 @@ def fetchnexrad(username: str, password: str):
             typer.echo("Invalid file")
             return
 
-    FASTAPI_URL = "http://localhost:8000/nexrad_s3_fetchurl"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_s3_fetchurl"
     response = requests.post(FASTAPI_URL, json={"year": year, "month": month_selected, "day": day_selected, "station": station_selected, "file": file_selected})
 
     if response.status_code == 200:
@@ -316,28 +229,18 @@ def fetch(username: str, password:str, bucket_name:str):
     """
 
     s3client = create_connection()
-    connection = sqlite3.connect(database_path)
-    cursor = connection.cursor()
-    users = pd.read_sql_query("SELECT * FROM Users", connection)
-    user_lst = users["username"].tolist()
 
-    if username not in user_lst:
-        typer.echo(f"User {username} does not exist")
+    FASTAPI_URL = "http://3.235.95.244:8000/check_user_login"
+    response = requests.post(FASTAPI_URL, json={"username": username, "password": password})
+
+    if response.status_code == 401:
+        typer.echo("Invalid username or password")
         return
 
-    stored_password = pd.read_sql("SELECT hashed_password FROM users WHERE username =" + "'" + username + "'", connection)
-    stored_password = stored_password["hashed_password"].tolist()
-    stored_password = stored_password[0]
+    FASTAPI_URL = "http://3.235.95.244:8000/insert_user_activity"
+    response = requests.post(FASTAPI_URL, json={"username": username, "api_name": "s3_fetch_keys"})
 
-    if bcrypt.checkpw(password.encode('utf-8'), stored_password):
-        typer.echo("Password is correct")
-    else:
-        typer.echo("Password is incorrect")
-        return
-    
-    response = user_status(username, "s3_fetch_keys")
-    if response == "Too many requests wait for 1 hour":
-
+    if response.status_code == 429:
         typer.echo("Too many requests wait for 1 hour")
         return
     
@@ -345,7 +248,7 @@ def fetch(username: str, password:str, bucket_name:str):
     typer.confirm(f"Are you sure you want to list files in S3 bucket?", abort=True)
     typer.echo("Listing files in S3 bucket.........")
 
-    FASTAPI_URL = "http://localhost:8000/s3_fetch_keys"
+    FASTAPI_URL = "http://3.235.95.244:8000/s3_fetch_keys"
     response = requests.get(FASTAPI_URL, json={"bucket_name": bucket_name})
 
     if response.status_code == 200:
@@ -354,7 +257,6 @@ def fetch(username: str, password:str, bucket_name:str):
     else:
         typer.echo("Invalid bucket name")
         return
-
 
 
 
@@ -371,35 +273,25 @@ def download(username: str, password:str, bucket_name: str = typer.Argument("dam
     Returns:
         None
     """
-
     s3client = create_connection()
-    connection = sqlite3.connect(database_path)
-    cursor = connection.cursor()
-    users = pd.read_sql_query("SELECT * FROM Users", connection)
-    user_lst = users["username"].tolist()
+    FASTAPI_URL = "http://3.235.95.244:8000/check_user_login"
+    response = requests.post(FASTAPI_URL, json={"username": username, "password": password})
 
-    if username not in user_lst:
-        typer.echo(f"User {username} does not exist")
+    if response.status_code == 401:
+        typer.echo("Invalid username or password")
         return
 
-    stored_password = pd.read_sql("SELECT hashed_password FROM users WHERE username =" + "'" + username + "'", connection)
-    stored_password = stored_password["hashed_password"].tolist()
-    stored_password = stored_password[0]
+    FASTAPI_URL = "http://3.235.95.244:8000/insert_user_activity"
+    response = requests.post(FASTAPI_URL, json={"username": username, "api_name": "download_s3_file"})
 
-    if bcrypt.checkpw(password.encode('utf-8'), stored_password):
-        typer.echo("Password is correct")
-    else:
-        typer.echo("Password is incorrect")
+    if response.status_code == 429:
+        typer.echo("Too many requests wait for 1 hour")
         return
     
-    response = user_status(username, "download_s3_file")
-    if response == "Too many requests wait for 1 hour":
-        typer.echo(response)
-        return
 
     # Check if the file exists in the bucket
 
-    FASTAPI_URL = "http://localhost:8000/download_s3_file"
+    FASTAPI_URL = "http://3.235.95.244:8000/download_s3_file"
 
     response = requests.get(FASTAPI_URL, json={"bucket_name": bucket_name, "file_name": file_name})
 
@@ -428,35 +320,24 @@ def fetchnexrad_filename (username: str, password: str):
         None
     """
 
-    s3client = create_connection()
-    connection = sqlite3.connect(database_path)
-    cursor = connection.cursor()
-    users = pd.read_sql_query("SELECT * FROM Users", connection)
-    user_lst = users["username"].tolist()
+    FASTAPI_URL = "http://3.235.95.244:8000/check_user_login"
+    response = requests.post(FASTAPI_URL, json={"username": username, "password": password})
 
-    if username not in user_lst:
-        typer.echo(f"User {username} does not exist")
+    if response.status_code == 401:
+        typer.echo("Invalid username or password")
         return
 
-    stored_password = pd.read_sql("SELECT hashed_password FROM users WHERE username =" + "'" + username + "'", connection)
-    stored_password = stored_password["hashed_password"].tolist()
-    stored_password = stored_password[0]
+    FASTAPI_URL = "http://3.235.95.244:8000/insert_user_activity"
+    response = requests.post(FASTAPI_URL, json={"username": username, "api_name": "nexrad_get_download_link"})
 
-    if bcrypt.checkpw(password.encode('utf-8'), stored_password):
-        typer.echo("Password is correct")
-    else:
-        typer.echo("Password is incorrect")
-        return
-
-    response = user_status(username, "nexrad_get_download_link")
-    if response == "Too many requests wait for 1 hour":
-        typer.echo(response)
+    if response.status_code == 429:
+        typer.echo("Too many requests wait for 1 hour")
         return
     
     
     
     file_name = typer.prompt("Enter file name")
-    FASTAPI_URL = "http://localhost:8000/nexrad_get_download_link"
+    FASTAPI_URL = "http://3.235.95.244:8000/nexrad_get_download_link"
     response = requests.post(FASTAPI_URL, json={"filename": file_name})
 
     if response.status_code == 200:
